@@ -1,0 +1,28 @@
+# Mesmo ALB e host do OS Service (IngressGroup oficina-shared): o prefixo
+# /billing vem para cá. group.order negativo garante que esta regra seja
+# avaliada antes do "/" do OS Service.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oficina-billing
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: oficina-shared
+    alb.ingress.kubernetes.io/group.order: "-10"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /up
+spec:
+  ingressClassName: alb
+  rules:
+    - host: app.codefive.com.br
+      http:
+        paths:
+          - path: /billing
+            pathType: Prefix
+            backend:
+              service:
+                name: oficina-billing
+                port:
+                  number: 80
