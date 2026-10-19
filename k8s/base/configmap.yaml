@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oficina-billing-config
+data:
+  APP_NAME: "Oficina Billing"
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  # Links assinados e notification_url do Mercado Pago saem com este host
+  # (o ALB roteia app.codefive.com.br/billing/* para este serviço).
+  APP_URL: "https://app.codefive.com.br"
+  L5_SWAGGER_CONST_HOST: "https://app.codefive.com.br"
+  LOG_CHANNEL: "json"
+  LOG_STACK: "json"
+  LOG_LEVEL: "info"
+  CACHE_STORE: "file"
+  SESSION_DRIVER: "array"
+  QUEUE_CONNECTION: "sync"
+  METRICS_STORAGE: "apcu"
+  DYNAMODB_TABLE: "oficina-billing"
+  MESSAGING_SOURCE: "oficina-billing-service"
+  AWS_DEFAULT_REGION: "us-east-1"
+  MERCADOPAGO_SANDBOX: "true"
