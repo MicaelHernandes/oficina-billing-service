@@ -6,7 +6,7 @@
 |---|---|
 | [oficina-api](https://github.com/MicaelHernandes/oficina-api) | OS Service: clientes, veículos, catálogo, estoque e OS; **orquestrador da saga** (PostgreSQL) |
 | **oficina-billing-service** (este) | Orçamento e pagamento (**DynamoDB**) |
-| oficina-execution-service | Fila de execução (PostgreSQL) |
+| [oficina-execution-service](https://github.com/MicaelHernandes/oficina-execution-service) | Fila de execução (PostgreSQL) |
 | [oficina-k8s-infra](https://github.com/MicaelHernandes/oficina-k8s-infra) | VPC, EKS, ECR, ALB, DNS/TLS, monitoring, OIDC |
 | [oficina-db-infra](https://github.com/MicaelHernandes/oficina-db-infra) | RDS PostgreSQL |
 | [oficina-auth-lambda](https://github.com/MicaelHernandes/oficina-auth-lambda) | Lambda de auth por CPF + API Gateway |
