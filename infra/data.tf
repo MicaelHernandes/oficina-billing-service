@@ -8,3 +8,8 @@ data "aws_ssm_parameter" "eks_oidc_provider_arn" {
 data "aws_ssm_parameter" "os_topic_arn" {
   name = "/oficina/messaging/os-service/topic_arn"
 }
+
+# Fila do orquestrador (infra/ do oficina-api): os eventos do Billing vão para lá.
+data "aws_ssm_parameter" "os_queue_arn" {
+  name = "/oficina/messaging/os-service/queue_arn"
+}

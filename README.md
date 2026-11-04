@@ -140,7 +140,7 @@ O relatório `coverage.xml` de cada execução fica como artefato do workflow **
 1. **oficina-k8s-infra** (ECR, OIDC com DynamoDB/SNS/SQS, `/oficina/eks/oidc_provider_arn`).
 2. **oficina-api** com a `infra/` aplicada (tópico `oficina-os-events`, lido em `/oficina/messaging/os-service/topic_arn`).
 3. **Este repositório.**
-4. De volta ao **oficina-api**: incluir `oficina-billing-events` em `consumed_topics` para o OS Service receber os eventos do Billing.
+4. Os eventos chegam ao OS Service pela assinatura que a `infra/` deste repositório cria na fila do orquestrador (`/oficina/messaging/os-service/queue_arn`). Com os três serviços no ar, liga-se a saga no oficina-api (`SAGA_ENABLED=true`).
 
 ## Custo
 

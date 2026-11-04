@@ -6,7 +6,8 @@
 #   outbox pendente. On-demand e TTL em `expires_at` (inbox/outbox antigos).
 # - Fila SQS `oficina-billing-service` + DLQ, assinando o tópico do OS
 #   Service só com os comandos `billing.*` (filter policy).
-# - Tópico SNS `oficina-billing-events`: eventos para o orquestrador.
+# - Tópico SNS `oficina-billing-events`: eventos para o orquestrador, com a
+#   assinatura na fila do OS Service.
 # - Role IRSA do ServiceAccount `oficina-billing`.
 # - Segredos: token das rotas internas (gerado) e credenciais do Mercado Pago
 #   (o valor é cadastrado fora do Terraform, para não ir para o state).
@@ -123,6 +124,16 @@ resource "aws_sns_topic_subscription" "os_commands" {
   })
 
   depends_on = [aws_sqs_queue_policy.inbox]
+}
+
+# Eventos do Billing para o orquestrador: este repositório cria a assinatura do
+# próprio tópico na fila do OS Service (a política da fila já aceita os
+# tópicos oficina-*-events), então não há ordem de deploy entre os repos.
+resource "aws_sns_topic_subscription" "os_events" {
+  topic_arn            = aws_sns_topic.events.arn
+  protocol             = "sqs"
+  endpoint             = data.aws_ssm_parameter.os_queue_arn.value
+  raw_message_delivery = true
 }
 
 # --- IRSA -----------------------------------------------------------------
