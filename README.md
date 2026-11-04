@@ -77,7 +77,7 @@ sequenceDiagram
 | `GET public/budgets/{id}` · `…/approve` · `…/reject[?final=1]` | Links assinados enviados ao cliente |
 | `POST webhooks/mercadopago` | Notificação do MP (valida `x-signature` quando há `MERCADOPAGO_WEBHOOK_SECRET`) |
 | `GET public/payments/{id}/fake-checkout` · `POST …/pay` | Checkout simulado (só com `PAYMENT_DRIVER=fake`) |
-| `GET order-services/{osId}` | Orçamentos e cobranças da OS (interno, `Bearer BILLING_INTERNAL_TOKEN`) |
+| `GET order-services/{osId}` | Orçamentos e cobranças da OS (interno, `Bearer BILLING_INTERNAL_TOKEN`). O orçamento pendente traz os links assinados (`links.approve/reject/cancel`), para o atendente reenviar ao cliente |
 | `GET billing/api/documentation` | Swagger |
 | `GET /metrics` | Prometheus (só dentro do cluster) |
 
@@ -110,7 +110,7 @@ php artisan test --coverage   # Pest (precisa do DynamoDB Local)
 
 ## Testes e cobertura
 
-**50 testes, cobertura de 96%** (mínimo de 80% exigido no CI). Os testes cobrem:
+**51 testes, cobertura de 96%** (mínimo de 80% exigido no CI). Os testes cobrem:
 
 - os comandos da saga e a idempotência;
 - links assinados e renegociação;

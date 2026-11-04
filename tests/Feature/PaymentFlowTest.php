@@ -132,3 +132,18 @@ it('expõe orçamentos e cobranças na rota interna', function () {
         ->assertJsonCount(1, 'data.payments')
         ->assertJsonPath('data.budgets.0.status', 'approved');
 });
+
+it('traz os links assinados do orçamento pendente na rota interna', function () {
+    dispatchCommand(budgetCommand(osId: 77));
+
+    $links = $this->withToken('test-internal-token')->getJson('/billing/api/order-services/77')
+        ->assertOk()
+        ->json('data.budgets.0.links');
+
+    $this->getJson($links['approve'])->assertOk()->assertJsonPath('data.status', 'approved');
+    expect($links['cancel'])->toContain('final=1');
+
+    // Decidido, o orçamento não traz mais links.
+    $this->withToken('test-internal-token')->getJson('/billing/api/order-services/77')
+        ->assertJsonMissingPath('data.budgets.0.links');
+});
