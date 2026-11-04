@@ -211,6 +211,9 @@ resource "random_password" "internal_token" {
 
 resource "aws_secretsmanager_secret" "internal_token" {
   name = "/oficina/billing/internal-token"
+  # Sem janela de recuperação: o ambiente é destruído e recriado entre as
+  # apresentações, e um secret "agendado para exclusão" bloqueia recriar o nome.
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "internal_token" {
@@ -223,4 +226,7 @@ resource "aws_secretsmanager_secret_version" "internal_token" {
 # Sem valor, a pipeline sobe o Billing com o checkout simulado (PAYMENT_DRIVER=fake).
 resource "aws_secretsmanager_secret" "mercadopago" {
   name = "/oficina/billing/mercadopago"
+  # Sem janela de recuperação: o ambiente é destruído e recriado entre as
+  # apresentações, e um secret "agendado para exclusão" bloqueia recriar o nome.
+  recovery_window_in_days = 0
 }
