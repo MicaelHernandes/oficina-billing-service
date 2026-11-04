@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oficina-billing-nginx-config
+data:
+  default.conf: |
+    # request_id do log = o X-Request-Id da RESPOSTA do PHP. O middleware
+    # RequestId sempre devolve um id (o enviado pelo cliente ou um UUID gerado),
+    # então o id que o cliente recebe é o mesmo que fica no log. Se a requisição
+    # não chegar ao PHP (sem upstream), cai no header de entrada.
+    map $upstream_http_x_request_id $log_request_id {
+        ""      $http_x_request_id;
+        default $upstream_http_x_request_id;
+    }
+
+    # log_format e map só são válidos no contexto http; conf.d/*.conf é incluído nele.
+    log_format json_combined escape=json '{'
+        '"time":"$time_iso8601",'
+        '"remote_addr":"$remote_addr",'
+        '"method":"$request_method",'
+        '"uri":"$request_uri",'
+        '"status":$status,'
+        '"bytes":$body_bytes_sent,'
+        '"rt":$request_time,'
+        '"request_id":"$log_request_id",'
+        '"amzn_trace":"$http_x_amzn_trace_id"'
+    '}';
+
+    server {
+        listen 80 default_server;
+        server_name _;
+        root /var/www/html/public;
+        index index.php;
+        client_max_body_size 25m;
+
+        access_log /dev/stdout json_combined;
+        error_log /dev/stderr warn;
+
+        # API: todo request cai no index.php (php-fpm no mesmo pod).
+        location / {
+            try_files $uri /index.php?$query_string;
+        }
+
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTPS $http_x_forwarded_proto if_not_empty;
+            fastcgi_read_timeout 60s;
+        }
+    }
