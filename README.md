@@ -81,6 +81,8 @@ sequenceDiagram
 | `GET billing/api/documentation` | Swagger |
 | `GET /metrics` | Prometheus (só dentro do cluster) |
 
+**Postman:** o fluxo completo da OS pelos três serviços, incluindo as rotas deste, está na collection [`oficina-fase4.postman_collection.json`](https://github.com/MicaelHernandes/oficina-api/blob/homolog/docs/postman/oficina-fase4.postman_collection.json) do oficina-api.
+
 ## Mercado Pago
 
 - **Produção/sandbox:** cadastre as credenciais no Secrets Manager. O deploy liga `PAYMENT_DRIVER=mercadopago` quando há `access_token`:
