@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   tests:
-    name: Pint + PHPStan + Pest (cobertura >= 80%)
+    # Nome estável: é o check a exigir na regra da branch (homolog/master).
+    name: Pint + PHPStan + Pest
     runs-on: ubuntu-latest
 
     services:
