@@ -16,6 +16,20 @@ describe('MercadoPagoSignature', function () {
         expect(MercadoPagoSignature::isValid("ts={$ts}, v1={$v1}", null, 'abc123', 'k', $now))->toBeTrue();
     });
 
+    it('aceita ts em segundos, como o Mercado Pago envia', function () use ($sign, $now) {
+        $v1 = $sign("id:189825429878;request-id:rq;ts:{$now};");
+        expect(MercadoPagoSignature::isValid("ts={$now},v1={$v1}", 'rq', '189825429878', 'k', $now + 5))->toBeTrue();
+    });
+
+    it('informa o motivo da recusa', function () use ($sign, $now, $ts) {
+        $v1 = $sign("id:1;ts:{$ts};");
+
+        expect(MercadoPagoSignature::failureReason(null, null, '1', 'k', $now))->toBe('missing')
+            ->and(MercadoPagoSignature::failureReason("ts={$ts},v1={$v1}", null, '1', 'k', $now + 3600))->toBe('expired')
+            ->and(MercadoPagoSignature::failureReason("ts={$ts},v1={$v1}", null, '1', 'outra', $now))->toBe('mismatch')
+            ->and(MercadoPagoSignature::failureReason("ts={$ts},v1={$v1}", null, '1', 'k', $now))->toBeNull();
+    });
+
     it('recusa assinatura errada, ausente, incompleta ou antiga', function () use ($sign, $now, $ts) {
         $v1 = $sign("id:1;request-id:rq;ts:{$ts};");
 

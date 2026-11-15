@@ -42,13 +42,14 @@ class MercadoPagoWebhookController extends Controller
         }
 
         $secret = config('billing.mercadopago.webhook_secret');
-        if ($secret && ! MercadoPagoSignature::isValid(
+        $reason = $secret ? MercadoPagoSignature::failureReason(
             $request->header('x-signature'),
             $request->header('x-request-id'),
             (string) ($request->query('data_id') ?? $dataId),
             $secret,
-        )) {
-            Log::warning('webhook do Mercado Pago com assinatura inválida', ['data_id' => $dataId]);
+        ) : null;
+        if ($reason !== null) {
+            Log::warning('webhook do Mercado Pago com assinatura inválida', ['data_id' => $dataId, 'reason' => $reason]);
 
             return $this->result('invalid_signature', 401);
         }

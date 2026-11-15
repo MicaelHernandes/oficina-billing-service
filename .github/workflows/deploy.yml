@@ -117,6 +117,9 @@ jobs:
 
       - name: Aguarda rollout
         run: |
+          # Secrets/ConfigMaps (ex.: credenciais do Mercado Pago) mudam sem trocar a
+          # imagem; o restart garante que os pods leiam os valores novos.
+          kubectl rollout restart deploy/oficina-billing deploy/oficina-billing-worker -n "$NAMESPACE"
           kubectl rollout status deploy/oficina-billing -n "$NAMESPACE" --timeout=240s
           kubectl rollout status deploy/oficina-billing-worker -n "$NAMESPACE" --timeout=180s
 
