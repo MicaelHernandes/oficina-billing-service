@@ -1,0 +1,51 @@
+# Workers do Billing num único pod (economiza recursos do nó):
+# - consumer: comandos da saga vindos da fila SQS (`billing:consume`)
+# - relay: publica o outbox do DynamoDB no SNS (`billing:relay`)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-billing-worker
+  labels:
+    app: oficina-billing-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oficina-billing-worker
+  template:
+    metadata:
+      labels:
+        app: oficina-billing-worker
+    spec:
+      serviceAccountName: oficina-billing
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          image: oficina-billing:latest
+          command: ["php", "artisan", "billing:consume", "--max-time=3600"]
+          envFrom: &env
+            - configMapRef:
+                name: oficina-billing-config
+            - secretRef:
+                name: oficina-billing-secrets
+            - configMapRef:
+                name: oficina-billing-runtime
+                optional: true
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "96Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+        - name: relay
+          image: oficina-billing:latest
+          command: ["php", "artisan", "billing:relay", "--max-time=3600"]
+          envFrom: *env
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "96Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

@@ -1,0 +1,127 @@
+name: Deploy (produção)
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: oficina
+  NAMESPACE: oficina
+
+jobs:
+  deploy:
+    name: infra + build + push ECR + deploy EKS
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Configura credenciais AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      # DynamoDB, tópico SNS, fila SQS (assinando os comandos billing.* do
+      # OS Service), role IRSA e segredos.
+      - name: Terraform apply (infra/)
+        working-directory: infra
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Login no ECR
+        id: ecr
+        run: |
+          ECR_URL=$(aws ssm get-parameter --name /oficina/ecr/oficina-billing-service/repository_url --query Parameter.Value --output text)
+          echo "url=$ECR_URL" >> "$GITHUB_OUTPUT"
+          REGISTRY=$(echo "$ECR_URL" | cut -d/ -f1)
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build e push da imagem
+        env:
+          ECR_URL: ${{ steps.ecr.outputs.url }}
+        run: |
+          docker build -t "$ECR_URL:${GITHUB_SHA}" -t "$ECR_URL:latest" .
+          docker push "$ECR_URL:${GITHUB_SHA}"
+          docker push "$ECR_URL:latest"
+
+      - name: Instala kubectl e kustomize
+        run: |
+          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Configura kubeconfig
+        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Garante o namespace
+        run: kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Cria/atualiza o Secret do Billing (Secrets Manager)
+        env:
+          APP_KEY: ${{ secrets.LARAVEL_APP_KEY }}
+        run: |
+          INTERNAL_TOKEN=$(aws secretsmanager get-secret-value --secret-id /oficina/billing/internal-token --query SecretString --output text)
+          # Credenciais do Mercado Pago são opcionais: sem valor cadastrado, o
+          # Billing sobe com o checkout simulado.
+          MP_JSON=$(aws secretsmanager get-secret-value --secret-id /oficina/billing/mercadopago --query SecretString --output text 2>/dev/null || echo '{}')
+          MP_TOKEN=$(echo "$MP_JSON" | jq -r '.access_token // empty')
+          MP_WEBHOOK_SECRET=$(echo "$MP_JSON" | jq -r '.webhook_secret // empty')
+
+          kubectl create secret generic oficina-billing-secrets -n "$NAMESPACE" \
+            --from-literal=APP_KEY="$APP_KEY" \
+            --from-literal=BILLING_INTERNAL_TOKEN="$INTERNAL_TOKEN" \
+            --from-literal=MERCADOPAGO_ACCESS_TOKEN="$MP_TOKEN" \
+            --from-literal=MERCADOPAGO_WEBHOOK_SECRET="$MP_WEBHOOK_SECRET" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          if [ -n "$MP_TOKEN" ]; then echo "PAYMENT_DRIVER=mercadopago" >> "$GITHUB_ENV"; else echo "PAYMENT_DRIVER=fake" >> "$GITHUB_ENV"; fi
+
+      - name: Cria/atualiza o ConfigMap de runtime (SSM)
+        run: |
+          TOPIC_ARN=$(aws ssm get-parameter --name /oficina/messaging/billing-service/topic_arn --query Parameter.Value --output text)
+          QUEUE_URL=$(aws ssm get-parameter --name /oficina/messaging/billing-service/queue_url --query Parameter.Value --output text)
+
+          kubectl create configmap oficina-billing-runtime -n "$NAMESPACE" \
+            --from-literal=PAYMENT_DRIVER="$PAYMENT_DRIVER" \
+            --from-literal=MESSAGING_PUBLISHER=sns \
+            --from-literal=MESSAGING_CONSUMER=sqs \
+            --from-literal=MESSAGING_TOPIC_ARN="$TOPIC_ARN" \
+            --from-literal=MESSAGING_QUEUE_URL="$QUEUE_URL" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "Billing com PAYMENT_DRIVER=$PAYMENT_DRIVER"
+
+      - name: Aponta a imagem e a role IRSA no overlay e aplica
+        env:
+          ECR_URL: ${{ steps.ecr.outputs.url }}
+        run: |
+          IRSA_ROLE_ARN=$(aws ssm get-parameter --name /oficina/messaging/billing-service/irsa_role_arn --query Parameter.Value --output text)
+          cd k8s/overlays/prod
+          sed -i "s#IRSA_ROLE_ARN#$IRSA_ROLE_ARN#" serviceaccount-irsa.yaml
+          kustomize edit set image oficina-billing="$ECR_URL:${GITHUB_SHA}"
+          kustomize build . | kubectl apply -f -
+
+      - name: Aguarda rollout
+        run: |
+          kubectl rollout status deploy/oficina-billing -n "$NAMESPACE" --timeout=240s
+          kubectl rollout status deploy/oficina-billing-worker -n "$NAMESPACE" --timeout=180s
+
+      - name: Status final
+        if: always()
+        run: |
+          kubectl get pods -n "$NAMESPACE" -l 'app in (oficina-billing,oficina-billing-worker)' -o wide || true
+          kubectl get ingress oficina-billing -n "$NAMESPACE" || true

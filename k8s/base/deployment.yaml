@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-billing
+  labels:
+    app: oficina-billing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oficina-billing
+  template:
+    metadata:
+      labels:
+        app: oficina-billing
+    spec:
+      serviceAccountName: oficina-billing
+      containers:
+        # php-fpm (código da aplicação).
+        - name: app
+          image: oficina-billing:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+              name: fpm
+          envFrom: &env
+            - configMapRef:
+                name: oficina-billing-config
+            - secretRef:
+                name: oficina-billing-secrets
+            # Tópico/fila e driver de pagamento, criado pela pipeline (SSM/Secrets Manager).
+            - configMapRef:
+                name: oficina-billing-runtime
+                optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "384Mi"
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+        # nginx sidecar (fastcgi -> php-fpm no mesmo pod).
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: oficina-billing-nginx-config
