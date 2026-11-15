@@ -20,4 +20,4 @@ data:
   DYNAMODB_TABLE: "oficina-billing"
   MESSAGING_SOURCE: "oficina-billing-service"
   AWS_DEFAULT_REGION: "us-east-1"
-  MERCADOPAGO_SANDBOX: "true"
+  MERCADOPAGO_SANDBOX: "false"
