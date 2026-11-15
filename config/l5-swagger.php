@@ -316,7 +316,9 @@ return [
          * Constants which can be used in annotations
          */
         'constants' => [
-            'L5_SWAGGER_CONST_HOST' => env('L5_SWAGGER_CONST_HOST', env('APP_URL', 'http://localhost')),
+            // Relativo: o Swagger UI chama o mesmo host que serve a documentação
+            // (gerada no build da imagem, quando APP_URL ainda não existe).
+            'L5_SWAGGER_CONST_HOST' => env('L5_SWAGGER_CONST_HOST', '/'),
         ],
     ],
 ];
