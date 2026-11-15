@@ -9,7 +9,6 @@ data:
   # Links assinados e notification_url do Mercado Pago saem com este host
   # (o ALB roteia app.codefive.com.br/billing/* para este serviço).
   APP_URL: "https://app.codefive.com.br"
-  L5_SWAGGER_CONST_HOST: "https://app.codefive.com.br"
   LOG_CHANNEL: "json"
   LOG_STACK: "json"
   LOG_LEVEL: "info"

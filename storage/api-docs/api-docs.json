@@ -1,0 +1,310 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Oficina — Billing Service",
+        "description": "Orçamento e pagamento (Mercado Pago) da OS. Os comandos da saga chegam pela fila SQS; estas rotas atendem o cliente (links assinados), o webhook do Mercado Pago e consultas internas.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Servidor principal"
+        }
+    ],
+    "paths": {
+        "/billing/api/public/payments/{payment}/fake-checkout": {
+            "get": {
+                "tags": [
+                    "Checkout simulado"
+                ],
+                "summary": "Checkout simulado: dados da cobrança e URL para aprovar/recusar (só com PAYMENT_DRIVER=fake)",
+                "operationId": "662595bd2bc9ae0dbdd062ea1025ccb1",
+                "parameters": [
+                    {
+                        "name": "payment",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cobrança e URL assinada de pagamento"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "Cobrança não encontrada ou driver não é fake"
+                    }
+                }
+            }
+        },
+        "/billing/api/public/payments/{payment}/fake-checkout/pay": {
+            "post": {
+                "tags": [
+                    "Checkout simulado"
+                ],
+                "summary": "Simula o resultado do pagamento como se fosse o webhook do Mercado Pago",
+                "operationId": "a1cbfd9bfe8684c2540817462a1fc7f4",
+                "parameters": [
+                    {
+                        "name": "payment",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "approved",
+                                            "rejected"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cobrança atualizada; evento publicado para a saga"
+                    },
+                    "404": {
+                        "description": "Cobrança não encontrada"
+                    },
+                    "422": {
+                        "description": "Status inválido"
+                    }
+                }
+            }
+        },
+        "/billing/api/order-services/{osId}": {
+            "get": {
+                "tags": [
+                    "Interno"
+                ],
+                "summary": "Orçamentos e cobranças de uma OS (rota interna, Bearer BILLING_INTERNAL_TOKEN)",
+                "operationId": "24573af38496548f9cfd1ec5e6f20c92",
+                "parameters": [
+                    {
+                        "name": "osId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Revisões do orçamento e cobranças, mais recentes primeiro. O orçamento pendente traz os links assinados de aprovação/recusa (os mesmos do e-mail ao cliente), para o atendente reenviar."
+                    },
+                    "401": {
+                        "description": "Token ausente ou inválido"
+                    }
+                },
+                "security": [
+                    {
+                        "internalToken": []
+                    }
+                ]
+            }
+        },
+        "/billing/api/webhooks/mercadopago": {
+            "post": {
+                "tags": [
+                    "Mercado Pago"
+                ],
+                "summary": "Notificação de pagamento do Mercado Pago (valida x-signature quando MERCADOPAGO_WEBHOOK_SECRET está definido)",
+                "operationId": "4bb1cd9c0e44d5c8c4e509a60939c801",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "example": "payment"
+                                    },
+                                    "data": {
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "example": "123456789"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Notificação processada (ou ignorada, se não for de pagamento)"
+                    },
+                    "401": {
+                        "description": "Assinatura inválida"
+                    },
+                    "502": {
+                        "description": "Falha ao consultar o Mercado Pago; o MP reenvia a notificação"
+                    }
+                }
+            }
+        },
+        "/billing/api/public/budgets/{budget}": {
+            "get": {
+                "tags": [
+                    "Orçamento (cliente)"
+                ],
+                "summary": "Consultar o orçamento (link assinado)",
+                "operationId": "985dac193a851662c8dc4e264fe5ad2c",
+                "parameters": [
+                    {
+                        "name": "budget",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Orçamento com itens, total e status"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "Orçamento não encontrado"
+                    }
+                }
+            }
+        },
+        "/billing/api/public/budgets/{budget}/approve": {
+            "get": {
+                "tags": [
+                    "Orçamento (cliente)"
+                ],
+                "summary": "Aprovar o orçamento (link assinado). Dispara billing.budget.approved e, na saga, a cobrança.",
+                "operationId": "265e573adca65e056c9bda44af9f0914",
+                "parameters": [
+                    {
+                        "name": "budget",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Orçamento aprovado"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "Orçamento não encontrado"
+                    },
+                    "422": {
+                        "description": "Orçamento já decidido ou substituído por nova proposta"
+                    }
+                }
+            }
+        },
+        "/billing/api/public/budgets/{budget}/reject": {
+            "get": {
+                "tags": [
+                    "Orçamento (cliente)"
+                ],
+                "summary": "Recusar o orçamento (link assinado). final=1 cancela a OS; sem final, pede nova proposta.",
+                "operationId": "6c39cdc10a40773f6a8c46c0a6aa8010",
+                "parameters": [
+                    {
+                        "name": "budget",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "final",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "enum": [
+                                0,
+                                1
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Orçamento recusado"
+                    },
+                    "403": {
+                        "description": "Assinatura inválida ou expirada"
+                    },
+                    "404": {
+                        "description": "Orçamento não encontrado"
+                    },
+                    "422": {
+                        "description": "Orçamento já decidido ou substituído por nova proposta"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "internalToken": {
+                "type": "http",
+                "description": "BILLING_INTERNAL_TOKEN",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Orçamento (cliente)",
+            "description": "Links assinados enviados por e-mail ao cliente"
+        },
+        {
+            "name": "Checkout simulado",
+            "description": "Checkout simulado"
+        },
+        {
+            "name": "Interno",
+            "description": "Interno"
+        },
+        {
+            "name": "Mercado Pago",
+            "description": "Mercado Pago"
+        }
+    ]
+}
